@@ -1,12 +1,10 @@
 # GitBook Image Captions Plugin
 
 [![Build Status](https://travis-ci.org/todvora/gitbook-plugin-image-captions.svg?branch=master)](https://travis-ci.org/todvora/gitbook-plugin-image-captions)
-[![Coverage Status](https://coveralls.io/repos/todvora/gitbook-plugin-image-captions/badge.svg)](https://coveralls.io/r/todvora/gitbook-plugin-image-captions)
 [![Dependencies Status](https://david-dm.org/todvora/gitbook-plugin-image-captions/status.svg)](https://david-dm.org/todvora/gitbook-plugin-image-captions/)
 [![DevDependencies Status](https://david-dm.org/todvora/gitbook-plugin-image-captions/dev-status.svg)](https://david-dm.org/todvora/gitbook-plugin-image-captions/#info=devDependencies)
 
-Add nice generated captions to your book images. This plugin converts ```alt``` or ```title``` attributes of your
-images into the captions. Works both in GitBook website and generated book (pdf, mobi).
+Add nice generated captions to your book images. This plugin converts ```alt``` or ```title``` attributes of your images into the captions. Works both in GitBook website and generated book (pdf, mobi).
 
 ![rendered page](https://raw.github.com/todvora/gitbook-plugin-image-captions/master/preview.jpg)
 
@@ -27,7 +25,7 @@ If you're building your book locally, download an prepare plugins simply by runn
 
 ## Configuration
 The plugin provides reasonable defaults and you don't need to config anything.
-However there are two config values, you can use to adapt captions to your needs:
+However there are several config values, you can use to adapt captions to your needs:
 
 ### Caption text
 
@@ -58,6 +56,123 @@ This will align the caption to the left:
       }
   }
 ```
+
+### Page level and image number
+
+Keywords ```_PAGE_LEVEL_``` and ```_PAGE_IMAGE_NUMBER_``` are available.
+
+```json
+  "pluginsConfig": {
+      "image-captions": {
+          "caption": "Image _PAGE_LEVEL_._PAGE_IMAGE_NUMBER_ - _CAPTION_"
+      }
+  }
+```
+
+### Image specific captions
+
+You can set up caption template for a specific image by image level. Level is constructed from page level and image order so that on subpage 1.2 second image level is: ```1.2.2```. That can be used as an index on configuration:
+
+```json
+  "pluginsConfig": {
+    "image-captions": {
+      "images": {
+        "1.2.2": {
+          "caption": "This is a spefial image: _CAPTION_"
+        }
+      }
+    }
+  }
+```
+
+### Additional image attributes
+
+Similarly you can specify image tag attributes generally and according to image level:
+
+```json
+  "pluginsConfig": {
+    "image-captions": {
+      "attributes": { "width": "300" },
+      "images": {
+        "1.2.2": {
+          "attributes": {
+            "width": "400"
+          }
+        }
+      }
+    }
+  }
+```
+
+### Image list
+
+By the version 0.3.0 image list is available from book variables. You need to define variable name:
+
+```json
+  "pluginsConfig": {
+    "image-captions": {
+      "variable_name": "pictures"
+    }
+  }
+```
+
+This will automatic add image container to the book variables, so that they are present on any page:
+```json
+    "variables": {
+        "pictures": []
+    }
+```
+
+Note: it is not necessary to add pictures entry on variables, this is just to clarify usage of the image list. By defining ```variable_name``` you can make sure not to overwrite any previous book variable.
+
+All images are available on any page. Say you have a ```pictures.md```. Then you can do:
+
+```markdown
+  # Pictures
+
+  {% for picture in book.pictures %}
+    1. [{{ picture.list_caption }}]({{ picture.backlink }})
+  {% endfor %}
+```
+
+Image properties available in addition to ```list_caption``` and ```backlink``` are:
+
+* **backlink**: link back to the image page containing anchor
+* **list_caption**: image caption get from alt or title attribute and processed for list image label
+* **index**: index of an image on a page aka. page wide image number
+* **src**: image src attribute
+* **key**: image key concatenated by ```page_level.index```
+* **page_level**: page level of the image
+* **caption**: image caption get from alt or title attribute
+* **nro**: book wide image number
+
+You can set a different caption (label) for each image on a list. This makes it possible to separate page image caption at the actual page from the label of the image on a picture list:
+
+```json
+  "pluginsConfig": {
+    "image-captions": {
+      "variable_name": "pictures",
+      "list_caption": "List image _BOOK_IMAGE_NUMBER_: _CAPTION_"
+    }
+  }
+```
+
+Note that new keyword ```_BOOK_IMAGE_NUMBER_``` is available if image list functionality is set on. And you also can set a specific image caption / label as well:
+
+```json
+  "pluginsConfig": {
+    "image-captions": {
+      "variable_name": "pictures",
+      "images": {
+        "1.2.2": {
+          "list_caption": "Special list image _PAGE_LEVEL_._PAGE_IMAGE_NUMBER_: _CAPTION_"
+        }
+      }
+    }
+  }
+```
+
+```_BOOK_IMAGE_NUMBER_``` variable is ```0``` if ```variable_name``` is not set ie. image list behavious is not activated.
 
 ## CSS Styles
 This plugin generates simple ```figure``` around your images:
@@ -134,9 +249,9 @@ Important part of this plugin is the test suite. You can run the test with comma
 npm test
 ```
 
-The test suite includes [JSHint](https://www.npmjs.com/package/jshint) validation of the plugin and test suite itself. Then the [Jasmine](https://www.npmjs.com/package/jasmine-node) tests are executed,
-validating expected plugin bahavior. To be sure, that all of the code is covered, [Istanbul](https://github.com/gotwarlost/istanbul) generates coverage reports
-and sends them to [Coveralls.io](https://coveralls.io/r/todvora/gitbook-plugin-image-captions) service.
+The test suite includes [JSHint](https://www.npmjs.com/package/jshint) validation of the plugin and test suite itself.
+Then the [Mocha](https://mochajs.org/) integration tests are executed, validating expected plugin bahavior.
+Integration tests use [gitbook-tester](https://www.npmjs.com/package/gitbook-tester).
 
 The tests are executed with every pushed commit on the [Travis-CI server](https://travis-ci.org/todvora/gitbook-plugin-image-captions).
 
@@ -145,9 +260,18 @@ This plugin is based on the example plugin from [GitbookIO/plugin](https://githu
 
 ### Changes
 
+#### 0.3.0
+- added support for book wide and page wide image numbering
+- added support for image specific caption and attribute configuration
+- added support for image list construction by book variables
+- new template keywords: ```_PAGE_LEVEL_```, ```_PAGE_IMAGE_NUMBER_```, ```_BOOK_IMAGE_NUMBER_ ```in addition to ```_CAPTION_```
+
+Thanks [@markomanninen](https://github.com/markomanninen) for all new features!
 
 #### 0.2.0
- - Paragraphs and inline image (PR [#1](https://github.com/todvora/gitbook-plugin-image-captions/pull/1) by [@aschempp](https://github.com/aschempp))
+ - Paragraphs and inline image
+
+Thanks [@aschempp](https://github.com/aschempp) for PR [#1](https://github.com/todvora/gitbook-plugin-image-captions/pull/1) and new test cases!
 
 #### 0.1.0
 - figcaption text-align configurable
