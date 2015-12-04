@@ -31,6 +31,8 @@ var createCaption = function(key, caption, options, caption_key, page_level, pag
 var insertCaptions = function(page, section) {
   var options = this.options.pluginsConfig['image-captions'] || {};
   var page_level = page.progress.current.level;
+  var id_prefix = options.id_prefix || 'fig';
+  var replace_dots = options.replace_dots || '.';
   // process section content with jquery lib
   var $ = cheerio.load(section.content);
   // get all images from section content
@@ -58,7 +60,7 @@ var insertCaptions = function(page, section) {
         nro = images[key].nro;
       }
       var result = createCaption(key, caption, options, 'caption', page_level, i, nro);
-      img.parent().replaceWith('<figure id="fig'+key+'">' + $.html(img) + '<figcaption>'+result+'</figcaption></figure>');
+      img.parent().replaceWith('<figure id="'+id_prefix+(replace_dots != '.' ? key.split('.').join(replace_dots) : key)+'">' + $.html(img) + '<figcaption>'+result+'</figcaption></figure>');
     };
     var caption = img.attr('title') || img.attr('alt');
     if (caption) {
@@ -77,6 +79,8 @@ var insertCaptions = function(page, section) {
 
 var collectImages = function(section, page, that) {
   var $ = cheerio.load(section.content);
+  var id_prefix = that.options.pluginsConfig['image-captions'].id_prefix || 'fig';
+  var replace_dots = that.options.pluginsConfig['image-captions'].replace_dots || '.';
   $('img').each(function(i, elem) {
     var img = $(elem);
     if (img.parent().children().length > 1 || img.parent().text() !== '') {
@@ -94,7 +98,7 @@ var collectImages = function(section, page, that) {
         // key concatenated from page_level.index
         key: key,
         // link to the image page with anchor
-        backlink: page.path + '#fig' + key,
+        backlink: page.path + '#' + id_prefix + (replace_dots != '.' ? key.split('.').join(replace_dots) : key),
         // page level
         page_level: level,
         // caption from image title / alt

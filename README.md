@@ -199,6 +199,7 @@ figcaption {
     line-height: 1.5em;
 }
 ```
+
 How to attach your own styles can you read on [help.gitbook.com](http://help.gitbook.com/format/configuration.html).
 
 First, you have to create your own css file - for example ```website.css```. Then add
@@ -236,6 +237,20 @@ The same should apply for the online book editor on [gitbook.com](https://www.gi
 
 ![Configuration of styles in book.json](https://raw.github.com/todvora/gitbook-plugin-image-captions/master/config.gif)
 
+Since version 0.3.0 figure element also gets an id attribute, which is formed default by: ```fig_PAGE_LEVEL_._BOOK_IMAGE_NUMBER``` resulting something like: ```fig1.1.1```. You can modify id prefix and page level / image separator with configuration:
+
+```json
+{
+  "pluginsConfig": {
+    "image-captions": {
+      "id_prefix": "figure",
+      "replace_dots": "-"
+    }
+  }
+}
+```
+
+when id attribute is in accordance to css specification: ```figure1-1-1```.
 
 ## Under the hood
 This plugin attaches itself to the "page" event of GitBook generate task. It receives rendered HTML page of the chapter.
