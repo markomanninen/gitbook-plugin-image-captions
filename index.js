@@ -31,8 +31,6 @@ var createCaption = function(key, caption, options, caption_key, page_level, pag
 var insertCaptions = function(page, section) {
   var options = this.options.pluginsConfig['image-captions'] || {};
   var page_level = page.progress.current.level;
-  var id_prefix = options.id_prefix || 'fig';
-  var replace_dots = options.replace_dots || '.';
   // process section content with jquery lib
   var $ = cheerio.load(section.content);
   // get all images from section content
@@ -60,7 +58,16 @@ var insertCaptions = function(page, section) {
         nro = images[key].nro;
       }
       var result = createCaption(key, caption, options, 'caption', page_level, i, nro);
-      img.parent().replaceWith('<figure id="'+id_prefix+(replace_dots != '.' ? key.split('.').join(replace_dots) : key)+'">' + $.html(img) + '<figcaption>'+result+'</figcaption></figure>');
+      var imageParent = img.parent();
+      var figure = '<figure id="fig'+key+'">' + $.html(img) + '<figcaption>'+result+'</figcaption></figure>';
+      if(imageParent[0].tagName === 'p') {
+          // the image is wrapped only by a paragraph
+          imageParent.replaceWith(figure);
+      } else {
+        // the image is wrapped by a link and this link is then wrapped by a paragraph
+        img.replaceWith(figure);
+        imageParent.parent().replaceWith(imageParent);
+      }
     };
     var caption = img.attr('title') || img.attr('alt');
     if (caption) {
@@ -77,7 +84,8 @@ var insertCaptions = function(page, section) {
   section.content = $.html();
 };
 
-var collectImages = function(section, page, that) {
+var collectImages = function(page, section) {
+  var that = this;
   var $ = cheerio.load(section.content);
   var id_prefix = that.options.pluginsConfig['image-captions'].id_prefix || 'fig';
   var replace_dots = that.options.pluginsConfig['image-captions'].replace_dots || '.';
@@ -98,7 +106,7 @@ var collectImages = function(section, page, that) {
         // key concatenated from page_level.index
         key: key,
         // link to the image page with anchor
-        backlink: page.path + '#' + id_prefix + (replace_dots != '.' ? key.split('.').join(replace_dots) : key),
+        backlink: page.path + '#fig' + key,
         // page level
         page_level: level,
         // caption from image title / alt
@@ -109,7 +117,7 @@ var collectImages = function(section, page, that) {
         list_caption: null
       };
       images[key].nro = that.config.book.options.variables[that.options.pluginsConfig['image-captions'].variable_name].length+1;
-      images[key].list_caption = createCaption(key, caption, that.options.pluginsConfig['image-captions'], 'list_caption', level, i, images[key].nro)
+      images[key].list_caption = createCaption(key, caption, that.options.pluginsConfig['image-captions'], 'list_caption', level, i, images[key].nro);
       that.config.book.options.variables[that.options.pluginsConfig['image-captions'].variable_name].push(images[key]);
     }
   });
@@ -137,16 +145,17 @@ module.exports = {
     hooks: {
       'init': function() { // before book pages has been converted to html
         var that = this;
-        var options = that.options.pluginsConfig['image-captions'] || {};
+        if(!that.options.pluginsConfig['image-captions']) {
+          that.options.pluginsConfig['image-captions'] = {};
+        }
+        var options = that.options.pluginsConfig['image-captions'];
         options.variable_name = options.variable_name || '_pictures';
-        var files = Object.keys(that.navigation);
         that.config.book.options.variables[options.variable_name] = [];
         // iterate each files found from navigation instance
-        var files = [];
-        Object.keys(that.navigation).map(function(key) {
-          files.push({key: key, order: parseInt(that.navigation[key].index)});
-        });
-        var promises = files.sort(function(a, b) {
+        var promises = Object.keys(that.navigation).map(function(key) {
+          return {key: key, order: parseInt(that.navigation[key].index)};
+        })
+        .sort(function(a, b) {
           return a.order - b.order;
         })
         .map(function(file) {
@@ -156,9 +165,7 @@ module.exports = {
                 // get only normal sections?
                 return section.type == 'normal';
               })
-            .map(function(item) {
-              return collectImages(item, page, that);
-            }, that);
+            .map(collectImages.bind(that, page));
           });
         });
         return Q.all(promises);

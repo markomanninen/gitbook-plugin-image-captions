@@ -2,4 +2,6 @@ language: node_js
 sudo: false
 node_js:
   - "0.12"
-after_script: "npm run coverage"
+
+before_script:
+  - npm install -g gitbook-cli

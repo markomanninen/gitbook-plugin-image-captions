@@ -1,117 +1,282 @@
-var plugin = require("../index.js");
+var fs = require('fs');
+var path = require('path');
+var tester = require('gitbook-tester');
+var assert = require('assert');
 
-describe(__filename, function () {
-  beforeEach(function() {
-    // configure default options (to pretend options from gitbook)
-    plugin.options = {
-      'pluginsConfig' : {}
-    };
+// process.env.DEBUG = true;
+
+var thisModulePath = path.join(__dirname, '..');
+
+function basicBuild(content) {
+  return tester.builder()
+    .withContent(content)
+    .withLocalPlugin(thisModulePath)
+    .create();
+}
+
+function readFile(filename) {
+  return fs.readFileSync(path.join(__dirname, 'resources', filename), 'utf-8').trim();
+}
+
+describe('gitbook-plugin-image-captions', function() {
+  it('should not change content without images', function() {
+    return basicBuild('#heading\n\nparagraph')
+      .then(function(results){
+        assert.equal(results[0].content, '<h1 id="heading">heading</h1>\n<p>paragraph</p>');
+      });
   });
 
-  var onPageHook = plugin.hooks.page;  // reference to the hook method
-
-  it('should ignore all sections except \'normal\'', function (done) {
-    var page = {'sections':[{'type':'exercise', 'content': '<p><img src="foo.jpg" alt="bar"></p>'},{'type':'unknown', 'content': 'aaa'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p><img src="foo.jpg" alt="bar"></p>');
-    done();
-  });
-
-  it('should not change content without images', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<h1>test</h1><p>lorem ipsum</p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<h1>test</h1><p>lorem ipsum</p>');
-    done();
-  });
-
-  it('should create caption from alt attribute', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt="bar"></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<figure><img src="foo.jpg" alt="bar"><figcaption>Figure: bar</figcaption></figure>');
-    done();
-  });
-
-  it('should read caption format from options', function (done) {
-     plugin.options = {
-       'pluginsConfig' : {
-         'image-captions': {
-           'caption': 'Image - _CAPTION_'
-         }
-       }
-     };
-     var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt="bar"></p>'}]};
-     onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-     expect(page.sections[0].content).toEqual('<figure><img src="foo.jpg" alt="bar"><figcaption>Image - bar</figcaption></figure>');
-     done();
-  });
-
-  it('should align caption to the left', function (done) {
-     plugin.options = {
-       'pluginsConfig' : {
-         'image-captions': {
-           'align': 'left'
-         }
-       }
-     };
-     var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt="bar"></p>'}]};
-     onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-     expect(page.sections[0].content).toEqual('<figure><img src="foo.jpg" alt="bar"><figcaption class="left">Figure: bar</figcaption></figure>');
-     done();
+  it('should create caption from alt attribute', function() {
+   return basicBuild('![bar](foo.jpg)')
+    .then(function(results){
+      assert.equal(results[0].content, '<figure id="fig0.1"><img src="foo.jpg" alt="bar"><figcaption>Figure: bar</figcaption></figure>');
     });
-
-  it('should prefer title attribute if available', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt="bar" title="loremipsum"></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<figure><img src="foo.jpg" alt="bar" title="loremipsum"><figcaption>Figure: loremipsum</figcaption></figure>');
-    done();
   });
 
-  it('should should ignore image without alt and title', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg"></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p><img src="foo.jpg"></p>');
-    done();
+  it('should read caption format from option', function() {
+
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {'caption': 'Image - _CAPTION_'}
+      }
+    };
+
+   return tester.builder()
+    .withContent('![bar](foo.jpg)')
+    .withBookJson(config)
+    .withLocalPlugin(thisModulePath)
+    .create()
+    .then(function(results){
+       assert.equal(results[0].content, '<figure id="fig0.1"><img src="foo.jpg" alt="bar"><figcaption>Image - bar</figcaption></figure>');
+    });
   });
 
-  it('should ignore images with empty alt', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt=""></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p><img src="foo.jpg" alt=""></p>');
-    done();
+  it('should align caption to the left', function() {
+
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {'align': 'left'}
+      }
+    };
+
+    return tester.builder()
+     .withContent('![bar](foo.jpg)')
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, '<figure id="fig0.1"><img src="foo.jpg" alt="bar"><figcaption class="left">Figure: bar</figcaption></figure>');
+     });
   });
 
-  it('should ignore images with empty title and fallback to alt', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt="bar" title=""></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<figure><img src="foo.jpg" alt="bar" title=""><figcaption>Figure: bar</figcaption></figure>');
-    done();
+
+  it('should prefer title attribute if available', function() {
+    return basicBuild('![alt text](img.jpg "title text")')
+     .then(function(results){
+       assert.equal(results[0].content, '<figure id="fig0.1"><img src="img.jpg" alt="alt text" title="title text"><figcaption>Figure: title text</figcaption></figure>');
+     });
   });
 
-  it('should ignore inline images (pre)', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p>foo <img src="foo.jpg" alt="bar"></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p>foo <img src="foo.jpg" alt="bar"></p>');
-    done();
+  it('should ignore images with empty alt', function() {
+    return basicBuild('![](img.jpg)')
+     .then(function(results){
+       assert.equal(results[0].content, '<p><img src="img.jpg" alt=""></p>');
+     });
   });
 
-  it('should ignore inline images (post)', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo.jpg" alt="bar"> bar</p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p><img src="foo.jpg" alt="bar"> bar</p>');
-    done();
+  it('should ignore images with empty title and fallback to alt', function() {
+    return basicBuild('![bar](img.jpg "")')
+     .then(function(results){
+       assert.equal(results[0].content, '<figure id="fig0.1"><img src="img.jpg" alt="bar"><figcaption>Figure: bar</figcaption></figure>');
+     });
   });
 
-  it('should ignore inline images', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p>foo <img src="foo.jpg" alt="bar"> bar</p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p>foo <img src="foo.jpg" alt="bar"> bar</p>');
-    done();
+  it('should ignore inline images (pre)', function() {
+    return basicBuild('foo ![bar](img.jpg)')
+     .then(function(results){
+       assert.equal(results[0].content, '<p>foo <img src="img.jpg" alt="bar"></p>');
+     });
   });
 
-  it('should ignore multiple images in paragraph', function (done) {
-    var page = {'sections':[{'type':'normal', 'content': '<p><img src="foo1.jpg" alt="bar1"><img src="foo2.jpg" alt="bar2"></p>'}]};
-    onPageHook.call(plugin, page); // call the hook, preserving plugin scope
-    expect(page.sections[0].content).toEqual('<p><img src="foo1.jpg" alt="bar1"><img src="foo2.jpg" alt="bar2"></p>');
-    done();
+  it('should ignore inline images (post)', function() {
+    return basicBuild('![bar](img.jpg) bar')
+     .then(function(results){
+       assert.equal(results[0].content, '<p><img src="img.jpg" alt="bar"> bar</p>');
+     });
   });
+
+  it('should ignore inline images', function() {
+    return basicBuild('foo ![bar](img.jpg) bar')
+     .then(function(results){
+       assert.equal(results[0].content, '<p>foo <img src="img.jpg" alt="bar"> bar</p>');
+     });
+  });
+
+  it('should ignore multiple images in paragraph', function() {
+    return basicBuild('![bar1](foo1.jpg)![bar2](foo2.jpg)')
+     .then(function(results){
+       assert.equal(results[0].content, '<p><img src="foo1.jpg" alt="bar1"><img src="foo2.jpg" alt="bar2"></p>');
+     });
+  });
+
+
+  it('should handle page numbers', function() {
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {
+          caption: 'Image _PAGE_LEVEL_._PAGE_IMAGE_NUMBER_ - _CAPTION_'
+        }
+      }
+    };
+
+    return tester.builder()
+     .withContent('![bar](foo.jpg)')
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, '<figure id="fig0.1"><img src="foo.jpg" alt="bar"><figcaption>Image 0.1 - bar</figcaption></figure>');
+     });
+  });
+
+
+  it('should render registry of figures', function() {
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {
+          variable_name: 'pictures'
+        }
+      }
+    };
+
+    var pageContent = readFile('image_registry_provided.md');
+    var expected = readFile('image_registry_expected.html');
+
+    return tester.builder()
+     .withContent(pageContent)
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, expected);
+     });
+  });
+
+  it('should render image global index', function() {
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {
+          variable_name: 'pictures',
+          caption: 'Image _BOOK_IMAGE_NUMBER_. - _CAPTION_'
+        }
+      }
+    };
+
+    var pageContent = readFile('image_bookwide_caption_provided.md');
+    var expected = readFile('image_bookwide_caption_expected.html');
+
+    return tester.builder()
+     .withContent(pageContent)
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, expected);
+     });
+
+  });
+
+  it('should use image specific caption', function() {
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {
+          'images': {
+            '0.1': {
+              'caption': "Special image _PAGE_LEVEL_._PAGE_IMAGE_NUMBER_: _CAPTION_"
+            }
+          }
+        }
+      }
+    };
+
+    return tester.builder()
+     .withContent('![bar](foo.jpg)')
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, '<figure id="fig0.1"><img src="foo.jpg" alt="bar"><figcaption>Special image 0.1: bar</figcaption></figure>');
+     });
+  });
+
+  it('should use different caption for figure and for list', function() {
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {
+          'variable_name': 'pictures',
+          'list_caption': 'List image _BOOK_IMAGE_NUMBER_: _CAPTION_'
+        }
+      }
+    };
+
+    var pageContent = readFile('image_registry_provided.md');
+    var expected = readFile('image_list_captions_expected.html');
+
+    return tester.builder()
+     .withContent(pageContent)
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, expected);
+     });
+
+  });
+
+  it('should pass default and specific image attributes', function() {
+    var config = {
+      plugins: ['image-captions'],
+      pluginsConfig: {
+        'image-captions': {
+          'attributes': { 'width': '300' },
+          'images': {
+            '0.2': {
+              'attributes': {
+                'width': '400'
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var pageContent = readFile('image_attributes_provided.md');
+    var expected = readFile('image_attributes_expected.html');
+
+    return tester.builder()
+     .withContent(pageContent)
+     .withBookJson(config)
+     .withLocalPlugin(thisModulePath)
+     .create()
+     .then(function(results){
+       assert.equal(results[0].content, expected);
+     });
+
+  });
+
+  it('should handle image inside link', function() {
+    return basicBuild('[![SPE Remoting Module](http://img.youtube.com/vi/fGvT8eDdWrg/0.jpg)](http://www.youtube.com/watch?v=fGvT8eDdWrg "Click for a quick demo")')
+     .then(function(results){
+       assert.equal(results[0].content, '<a href="http://www.youtube.com/watch?v=fGvT8eDdWrg" title="Click for a quick demo" target="_blank"><figure id="fig0.1"><img src="http://img.youtube.com/vi/fGvT8eDdWrg/0.jpg" alt="SPE Remoting Module"><figcaption>Figure: SPE Remoting Module</figcaption></figure></a>');
+     });
+  });
+
+
 });
